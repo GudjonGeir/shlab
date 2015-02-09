@@ -5,10 +5,10 @@
  * 
  * === User information ===
  * Group: NONE
- * User 1: dude13
- * SSN: 1807825919
- * User 2: 
- * SSN: X
+ * User 1: gudjonj13
+ * SSN: 0903912089
+ * User 2: solveigsg12
+ * SSN: 0102912169
  * === End User Information ===
  */
 #include <stdio.h>
@@ -364,6 +364,15 @@ void sigint_handler(int sig)
  */
 void sigtstp_handler(int sig) 
 {
+	// Job [2] (23538) stopped by signal 20
+	pid_t pid = fgpid(jobs);
+	struct job_t *job = getjobpid(jobs, pid);
+	if (pid > 0)
+	{
+		printf("Job [%d] (%d) stopped by signal %d\n", pid2jid(pid), pid, sig);
+		job->state = ST;
+		kill(pid, SIGTSTP);
+	}
     return;
 }
 
