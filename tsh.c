@@ -139,23 +139,23 @@ int main(int argc, char **argv)
     /* Execute the shell's read/eval loop */
     while (1) {
 
-	/* Read command line */
-	if (emit_prompt) {
-	    printf("%s", prompt);
-	    fflush(stdout);
-	}
-	if ((fgets(cmdline, MAXLINE, stdin) == NULL) && ferror(stdin)) {
-	    app_error("fgets error");
-	}
-	if (feof(stdin)) { /* End of file (ctrl-d) */
-	    fflush(stdout);
-	    exit(0);
-	}
+		/* Read command line */
+		if (emit_prompt) {
+			printf("%s", prompt);
+			fflush(stdout);
+		}
+		if ((fgets(cmdline, MAXLINE, stdin) == NULL) && ferror(stdin)) {
+			app_error("fgets error");
+		}
+		if (feof(stdin)) { /* End of file (ctrl-d) */
+			fflush(stdout);
+			exit(0);
+		}
 
-	/* Evaluate the command line */
-	eval(cmdline);
-	fflush(stdout);
-	fflush(stdout);
+		/* Evaluate the command line */
+		eval(cmdline);
+		fflush(stdout);
+		fflush(stdout);
     } 
 
     exit(0); /* control never reaches here */
@@ -174,6 +174,40 @@ int main(int argc, char **argv)
  */
 void eval(char *cmdline) 
 {
+	pid_t pid;
+	char *argv[MAXARGS];
+	int bg = parseline(cmdline, argv);
+
+	struct job_t *job;
+
+	if (!builtin_cmd(argv))
+	{
+		if ((pid = fork()) == 0)
+		{
+			execvp(argv[0], argv);
+			printf("%s: Command not found\n", argv[0]);
+			exit(0);
+		}
+
+		
+		int state = 1;
+		if (bg)
+		{
+			state = 2;
+		}
+		
+		addjob(jobs, pid, state, cmdline);
+		if (!bg)
+		{
+			waitfg(pid);
+		}
+		else
+		{
+			// [1] (23953) ./myspin 1 &
+			job = getjobpid(jobs, pid);
+			printf("[%d] (%d) %s", job->jid, job->pid, cmdline);
+		}
+	}
     return;
 }
 
@@ -243,6 +277,23 @@ int parseline(const char *cmdline, char **argv)
  */
 int builtin_cmd(char **argv) 
 {
+	if (strcmp(argv[0], "quit") == 0)
+	{
+		exit(0);
+	}
+	else if (strcmp(argv[0], "fg") == 0)
+	{
+
+	}
+	else if (strcmp(argv[0], "bg") == 0)
+	{
+
+	}
+	else if (strcmp(argv[0], "jobs") == 0)
+	{
+		listjobs(jobs);
+	}
+
     return 0;     /* not a builtin command */
 }
 
@@ -259,6 +310,11 @@ void do_bgfg(char **argv)
  */
 void waitfg(pid_t pid)
 {
+	struct job_t *job = getjobpid(jobs, pid);
+	while (job->state == 1)
+	{
+		sleep(1);
+	}
     return;
 }
 
@@ -275,6 +331,12 @@ void waitfg(pid_t pid)
  */
 void sigchld_handler(int sig) 
 {
+	int status;
+	pid_t pid;
+	while ((pid = waitpid(-1, &status, WNOHANG)) > 0)
+	{
+		deletejob(jobs, pid);
+	}
     return;
 }
 
@@ -285,6 +347,13 @@ void sigchld_handler(int sig)
  */
 void sigint_handler(int sig) 
 {
+	pid_t pid = fgpid(jobs);
+	if (pid > 0) 					// if pid is 0, then there is no fg job
+	{
+		//Job [1] (18146) terminated by signal 2
+		printf("Job [%d] (%d) terminated by signal %d\n", pid2jid(pid), pid, sig);
+		kill(pid, SIGINT);
+	}
     return;
 }
 
