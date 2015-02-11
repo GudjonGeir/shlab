@@ -181,13 +181,14 @@ void eval(char *cmdline)
 	struct job_t *job;
 
 	// Block sigchild to prevent race
-	sigset_t mask;
-	sigemptyset(&mask);
-	sigaddset(&mask, SIGCHLD);
-	sigprocmask(SIG_BLOCK, &mask, NULL); // Block sigchld
 
 	if (!builtin_cmd(argv))
 	{
+		sigset_t mask;
+		sigemptyset(&mask);
+		sigaddset(&mask, SIGCHLD);
+		sigprocmask(SIG_BLOCK, &mask, NULL); // Block sigchld
+		
 		if ((pid = fork()) == 0)
 		{
 			setpgid(0,0);	// Creating new process group
@@ -355,6 +356,10 @@ void do_bgfg(char **argv)
 		return;
 	}
 
+	if (kill(-job->pid, SIGCONT) < 0)
+	{
+		printf("error\n");
+	}
 	job->state = state;
 	if (state == FG)
 	{
@@ -377,7 +382,7 @@ void waitfg(pid_t pid)
 	struct job_t *job = getjobpid(jobs, pid);
 	while (job->state == 1)
 	{
-		sleep(1);
+		sleep(0);
 	}
     return;
 }
