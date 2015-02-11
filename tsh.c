@@ -159,6 +159,10 @@ int main(int argc, char **argv)
     } 
 
     exit(0); /* control never reaches here */
+	sigset_t mask;
+	sigemptyset(&mask);
+	sigaddset(&mask, SIGCHLD);
+	sigprocmask(SIG_BLOCK, &mask, NULL); // Block sigchld
 }
   
 /* 
@@ -184,6 +188,10 @@ void eval(char *cmdline)
 
 	if (!builtin_cmd(argv))
 	{
+		if (argv[0] == '\0')
+		{
+			return;
+		}
 		sigset_t mask;
 		sigemptyset(&mask);
 		sigaddset(&mask, SIGCHLD);
@@ -288,6 +296,10 @@ int parseline(const char *cmdline, char **argv)
  */
 int builtin_cmd(char **argv) 
 {
+	if (argv[0] == '\0') 
+	{
+		return 0;
+	}
 	if (strcmp(argv[0], "quit") == 0)
 	{
 		exit(0);
@@ -352,7 +364,7 @@ void do_bgfg(char **argv)
 	else
 	{
 		// fg: argument must be a PID or %jobid
-		printf("%s: argument must be a PID or %%jobid", argv[0]);
+		printf("%s: argument must be a PID or %%jobid\n", argv[0]);
 		return;
 	}
 
