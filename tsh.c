@@ -296,6 +296,7 @@ int parseline(const char *cmdline, char **argv)
  */
 int builtin_cmd(char **argv) 
 {
+	// compare the commands from user to built in commands 
 	if (argv[0] == '\0') 
 	{
 		return 0;
@@ -326,13 +327,14 @@ void do_bgfg(char **argv)
 	struct job_t *job;
 	char *param = argv[1];
 	int state = FG;
-
+	// handles fg or bg commands, depends on what the user wants.
+	// also send SIGCONT to restart the process 
 	if (strcmp(argv[0], "bg") == 0)
 	{
 		state = BG;
 	}
 
-	// bg command requires PID or %jobid argument
+	// print out error statement if no arguments were given
 	if (param == NULL)
 	{
 		printf("%s command requires PID or %%jobid argument\n", argv[0]);
@@ -363,7 +365,7 @@ void do_bgfg(char **argv)
 	}
 	else
 	{
-		// fg: argument must be a PID or %jobid
+		// error handling
 		printf("%s: argument must be a PID or %%jobid\n", argv[0]);
 		return;
 	}
@@ -414,26 +416,22 @@ void sigchld_handler(int sig)
 {
 	int status;
 	pid_t pid;
+	// handles necessary signlas with necessary error handling
 	while ((pid = waitpid(-1, &status, WNOHANG|WUNTRACED)) > 0)
 	{
 		if (WIFSIGNALED(status))
 		{
-			// printf("WIFSIGNALED");
-			//Job [1] (18146) terminated by signal 2
 			printf("Job [%d] (%d) terminated by signal %d\n", pid2jid(pid), pid, WTERMSIG(status));
 			deletejob(jobs, pid);
 		}
 		else if (WIFSTOPPED(status))
 		{
-			// printf("WIFSTOPPED");
-			// sigtstp_handler(WSTOPSIG(status));
 			struct job_t *job = getjobpid(jobs, pid);
 			printf("Job [%d] (%d) stopped by signal %d\n", pid2jid(pid), pid, WSTOPSIG(status));
 			job->state = ST;
 		}
 		else if(WIFEXITED(status))
 		{
-			// printf("WIFEXITED by status %d\n", WEXITSTATUS(status));
 			deletejob(jobs, pid);
 		}
 	}
