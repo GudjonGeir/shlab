@@ -184,7 +184,6 @@ void eval(char *cmdline)
 
 	struct job_t *job;
 
-	// Block sigchild to prevent race
 
 	if (!builtin_cmd(argv))
 	{
@@ -192,15 +191,34 @@ void eval(char *cmdline)
 		{
 			return;
 		}
+		// Block sigchild to prevent race
 		sigset_t mask;
-		sigemptyset(&mask);
-		sigaddset(&mask, SIGCHLD);
-		sigprocmask(SIG_BLOCK, &mask, NULL); // Block sigchld
-		
-		if ((pid = fork()) == 0)
+		if (sigemptyset(&mask) < 0)
 		{
-			setpgid(0,0);	// Creating new process group
-			sigprocmask(SIG_UNBLOCK, &mask, NULL); // Unblock sigchld
+			unix_error("sigemptyset error");
+		}
+		if (sigaddset(&mask, SIGCHLD) < 0)
+		{
+			unix_error("sigaddset error");
+		}
+		if (sigprocmask(SIG_BLOCK, &mask, NULL) < 0) // Block sigchld
+		{
+			unix_error("sigprocmask error");
+		
+		if ((pid = fork()) <  0)
+		{
+			unix_error("fork error");
+		}
+		else if (pid == 0)
+		{
+			if (setpgid(0,0) < 0)	// Creating new process group
+			{
+				unix_error("setpgid error");
+			}
+			if (sigprocmask(SIG_UNBLOCK, &mask, NULL) < 0) // Unblock sigchld
+			{
+				unix_error("sigprocmask error");
+			}
 			execve(argv[0], argv, environ);
 			printf("%s: Command not found\n", argv[0]);
 			exit(0);
@@ -214,7 +232,11 @@ void eval(char *cmdline)
 		}
 		
 		addjob(jobs, pid, state, cmdline);
-		sigprocmask(SIG_UNBLOCK, &mask, NULL); // Unblock sigchld
+		if (sigprocmask(SIG_UNBLOCK, &mask, NULL) < 0) // Unblock sigchld
+		{
+			unix_error("sigprocmask error");
+		}
+
 
 		if (!bg)
 		{
@@ -372,7 +394,7 @@ void do_bgfg(char **argv)
 
 	if (kill(-job->pid, SIGCONT) < 0)
 	{
-		printf("error\n");
+		unix_error("kill error");
 	}
 	job->state = state;
 	if (state == FG)
@@ -435,6 +457,11 @@ void sigchld_handler(int sig)
 			deletejob(jobs, pid);
 		}
 	}
+
+	if (errno != ECHILD)
+	{
+		unix_error("waitpid error");
+	}
     return;
 }
 
@@ -451,7 +478,10 @@ void sigint_handler(int sig)
 	if (pid > 0) 					// if pid is 0, then there is no fg job
 	{
 	//	printf("job cmdline: %s\n", getjobpid(jobs, pid)->cmdline);
-		kill(-pid, SIGINT);
+		if (kill(-pid, SIGINT) < 0)
+		{
+			unix_error("kill error");
+		}
 	}
     return;
 }
@@ -468,7 +498,10 @@ void sigtstp_handler(int sig)
 	// printf("%d", pid);
 	if (pid > 0)
 	{
-		kill(-pid, SIGTSTP);
+		if (kill(-pid, SIGTSTP) < 0)
+		{
+			unix_error("kill error");
+		}
 	}
     return;
 }
